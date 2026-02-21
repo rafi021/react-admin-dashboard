@@ -36,7 +36,7 @@ const Login = () => {
     },
   });
 
-  const onSubmit = (data: z.infer<typeof loginSchema>) => {
+  const onSubmit = async (data: z.infer<typeof loginSchema>) => {
     setIsLoading(true);
     console.log(data);
   };

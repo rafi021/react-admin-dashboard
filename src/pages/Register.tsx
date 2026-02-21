@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { registerSchema } from "@/lib/validation.ts";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
-import { LogIn } from "lucide-react";
+import { LogIn, UserPlus } from "lucide-react";
 const Register = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -38,7 +38,7 @@ const Register = () => {
     },
   });
 
-  const onSubmit = (data: z.infer<typeof registerSchema>) => {
+  const onSubmit = async (data: z.infer<typeof registerSchema>) => {
     setIsLoading(true);
     console.log(data);
   };
@@ -177,7 +177,7 @@ const Register = () => {
                     className="w-full btn hoverEffect"
                     disabled={isLoading}
                   >
-                    <LogIn /> {isLoading ? "Logging in..." : "Login"}
+                    <UserPlus /> {isLoading ? "Signing up..." : "Sign Up"}
                   </Button>
                 </div>
               </form>
@@ -190,7 +190,7 @@ const Register = () => {
                 to={"/login"}
                 className="text-indigo-600 hover:text-indigo-800 hover:underline hoverEffect"
               >
-                SignUp
+                SignIn
               </Link>
             </p>
           </CardFooter>
