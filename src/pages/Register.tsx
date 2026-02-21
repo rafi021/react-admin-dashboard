@@ -17,16 +17,16 @@ import {
 } from "@/components/ui/form";
 import { motion } from "motion/react";
 import { z } from "zod";
-import { Link, useNavigate } from "react-router";
+import { Link } from "react-router";
 import { useForm } from "react-hook-form";
 import { Input } from "@/components/ui/input";
 import { registerSchema } from "@/lib/validation.ts";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
-import { LogIn, UserPlus } from "lucide-react";
+import { UserPlus } from "lucide-react";
 const Register = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
 
   const form = useForm<z.infer<typeof registerSchema>>({
     resolver: zodResolver(registerSchema),
