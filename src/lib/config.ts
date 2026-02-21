@@ -32,6 +32,7 @@ const createApiInstance = (): AxiosInstance => {
         headers: {
             "Accept": "application/json",
             "Content-Type": "application/json",
+            'X-Requested-With': 'XMLHttpRequest',
             "ipaddress": "103.102.15.162",
             "browsername": "Google Chrome",
         },

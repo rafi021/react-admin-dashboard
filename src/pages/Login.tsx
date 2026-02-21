@@ -24,9 +24,11 @@ import { loginSchema } from "@/lib/validation.ts";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { LogIn } from "lucide-react";
+import useAuthStore from "@/store/useAuthStore";
 const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const authStore = useAuthStore();
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -38,7 +40,15 @@ const Login = () => {
 
   const onSubmit = async (data: z.infer<typeof loginSchema>) => {
     setIsLoading(true);
-    console.log(data);
+    try {
+      console.log("Login Called:", data);
+      await authStore.login(data);
+      navigate("/dashboard");
+    } catch (error) {
+      console.log("Login Error: ", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
   return (
     <div className="min-h-screen w-full bg-linear-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center">
