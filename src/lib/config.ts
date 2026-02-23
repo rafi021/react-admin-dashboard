@@ -97,6 +97,8 @@ export const ADMIN_API_ENDPOINTS = {
     // Users
     USER_INDEX: "/client/users",
     USER_CREATE: "/client/users",
+    USER_DELETE: (id: number) => `/client/users/${id}`,
+    USER_UPDATE: (id: number) => `/client/users/${id}`,
 
 } as const;
 

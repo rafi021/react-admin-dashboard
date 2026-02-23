@@ -49,13 +49,22 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
+import { set, z } from "zod";
 import { userSchema } from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { toast } from "sonner";
 import UserSkeleton from "@/components/skeletons/user-skeleton";
-
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 const UsersIndex = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
@@ -63,8 +72,8 @@ const UsersIndex = () => {
   // const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   // const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  // const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  // const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [formLoading, setFormLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
@@ -110,6 +119,28 @@ const UsersIndex = () => {
       toast.error("Failed to create user");
     } finally {
       setFormLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (user: User) => {
+    setSelectedUser(user);
+    setIsDeleteModalOpen(true);
+    try {
+      const { data: response } = await axiosPrivate.delete<
+        AdminAPIResponse<null>
+      >(ADMIN_API_ENDPOINTS.USER_DELETE(user.id));
+      if (response.success) {
+        toast.success("User deleted successfully");
+        setIsDeleteModalOpen(false);
+        setSelectedUser(null);
+        fetchUsers();
+      }
+    } catch (error) {
+      console.log(error);
+      toast.error("Failed to delete user");
+    } finally {
+      setSelectedUser(null);
+      setIsDeleteModalOpen(false);
     }
   };
 
@@ -311,6 +342,10 @@ const UsersIndex = () => {
                           size="icon"
                           title="Delete user"
                           className="border border-border"
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setIsDeleteModalOpen(true);
+                          }}
                         >
                           <Trash />
                         </Button>
@@ -532,6 +567,28 @@ const UsersIndex = () => {
           </Form>
         </DialogContent>
       </Dialog>
+      {/* Delete User Modal */}
+      <AlertDialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete{" "}
+              <span className="font-semibold">{selectedUser?.name}</span>'s
+              account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => handleDeleteUser(selectedUser!)}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
