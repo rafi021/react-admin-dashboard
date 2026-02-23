@@ -49,7 +49,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
-import { set, z } from "zod";
+import { z } from "zod";
 import { userSchema } from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ImageUpload } from "@/components/ui/image-upload";
@@ -123,7 +123,7 @@ const UsersIndex = () => {
   };
 
   const handleDeleteUser = async (user: User) => {
-    setSelectedUser(user);
+    if (!selectedUser) return;
     setIsDeleteModalOpen(true);
     try {
       const { data: response } = await axiosPrivate.delete<
