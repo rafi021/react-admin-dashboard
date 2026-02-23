@@ -53,6 +53,7 @@ import { z } from "zod";
 import { userSchema } from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ImageUpload } from "@/components/ui/image-upload";
+import { toast } from "sonner";
 
 const UsersIndex = () => {
   const [users, setUsers] = useState<User[]>([]);
@@ -98,12 +99,14 @@ const UsersIndex = () => {
         AdminAPIResponse<User>
       >(ADMIN_API_ENDPOINTS.USER_CREATE, data);
       if (response.success) {
-        setIsAddModalOpen(false);
+        toast.success("User created successfully");
         formAdd.reset();
+        setIsAddModalOpen(false);
         fetchUsers();
       }
     } catch (error) {
       console.log(error);
+      toast.error("Failed to create user");
     } finally {
       setFormLoading(false);
     }
@@ -124,6 +127,7 @@ const UsersIndex = () => {
       setTo(response.to || null);
     } catch (error) {
       console.log(error);
+      toast.error("Failed to fetch users");
     } finally {
       setLoading(false);
     }
@@ -154,8 +158,9 @@ const UsersIndex = () => {
 
           {isAdmin && (
             <Button
+              variant={"default"}
               onClick={() => setIsAddModalOpen(true)}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="hover:bg-amber-700"
             >
               <Plus />
               Add User
