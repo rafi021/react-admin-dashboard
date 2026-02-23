@@ -96,6 +96,7 @@ export const ADMIN_API_ENDPOINTS = {
 
     // Users
     USER_INDEX: "/client/users",
+    USER_CREATE: "/client/users",
 
 } as const;
 

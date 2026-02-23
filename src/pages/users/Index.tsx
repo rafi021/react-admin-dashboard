@@ -1,7 +1,7 @@
 import { useAxiosPrivate } from "@/hooks/useAxiosPrivate";
 import { ADMIN_API_ENDPOINTS } from "@/lib/config";
-import type { AdminPaginatedAPIResponse, User } from "@/type";
-import { useCallback, useEffect, useState } from "react";
+import type { AdminAPIResponse, AdminPaginatedAPIResponse, User } from "@/type";
+import { useEffect, useState } from "react";
 import {
   Table,
   TableBody,
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import {
   Edit,
   Eye,
+  Loader2,
   Plus,
   RefreshCw,
   Search,
@@ -30,76 +31,107 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import useAuthStore from "@/store/useAuthStore";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { userSchema } from "@/lib/validation";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { ImageUpload } from "@/components/ui/image-upload";
 
 const UsersIndex = () => {
-  const axiosPrivate = useAxiosPrivate();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [lastPage, setLastPage] = useState(1);
+  // const [refreshing, setRefreshing] = useState(false);
+  // const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  // const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  // const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  // const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [formLoading, setFormLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
   const [total, setTotal] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  // const [perPage, setPerPage] = useState(10);
+  // const [totalPages, setTotalPages] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
   const [from, setFrom] = useState<number | null>(null);
   const [to, setTo] = useState<number | null>(null);
 
-  const [filters, setFilters] = useState({
-    search: "",
-    paymentStatus: "all",
-    nextDueDate: "",
-  });
-  const [appliedFilters, setAppliedFilters] = useState(filters);
+  const axiosPrivate = useAxiosPrivate();
+  const { checkIsAdmin } = useAuthStore();
+  const isAdmin = checkIsAdmin();
 
-  const fetchUsers = useCallback(async () => {
+  type FormData = z.infer<typeof userSchema>;
+  const formAdd = useForm<FormData>({
+    resolver: zodResolver(userSchema),
+    defaultValues: {
+      name: "",
+      phone: "",
+      email: "",
+      password: "",
+      role_id: "5",
+      avatar: "",
+    },
+  });
+
+  const handleAddUser = async (data: FormData) => {
+    setFormLoading(true);
+    try {
+      const { data: response } = await axiosPrivate.post<
+        AdminAPIResponse<User>
+      >(ADMIN_API_ENDPOINTS.USER_CREATE, data);
+      if (response.success) {
+        setIsAddModalOpen(false);
+        formAdd.reset();
+        fetchUsers();
+      }
+    } catch (error) {
+      console.log(error);
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const fetchUsers = async () => {
     setLoading(true);
     try {
       const { data: response } = await axiosPrivate.get<
         AdminPaginatedAPIResponse<User>
-      >(ADMIN_API_ENDPOINTS.USER_INDEX, {
-        params: {
-          page: currentPage,
-          search: appliedFilters.search || undefined,
-          payment_status:
-            appliedFilters.paymentStatus !== "all"
-              ? appliedFilters.paymentStatus
-              : undefined,
-          next_due_date: appliedFilters.nextDueDate || undefined,
-        },
-      });
+      >(ADMIN_API_ENDPOINTS.USER_INDEX);
 
       setUsers(response.data || []);
+      setTotal(response.total || 0);
       setCurrentPage(response.current_page || 1);
       setLastPage(response.last_page || 1);
-      setTotal(response.total || 0);
-      setFrom(response.from ?? null);
-      setTo(response.to ?? null);
+      setFrom(response.from || null);
+      setTo(response.to || null);
     } catch (error) {
       console.log(error);
     } finally {
       setLoading(false);
     }
-  }, [axiosPrivate, appliedFilters, currentPage]);
+  };
 
   useEffect(() => {
     fetchUsers();
-  }, [fetchUsers]);
-
-  const applyFilters = () => {
-    setCurrentPage(1);
-    setAppliedFilters(filters);
-  };
-
-  const resetFilters = () => {
-    const defaultFilters = {
-      search: "",
-      paymentStatus: "all",
-      nextDueDate: "",
-    };
-    setFilters(defaultFilters);
-    setAppliedFilters(defaultFilters);
-    setCurrentPage(1);
-  };
-
-  const canGoPrev = currentPage > 1;
-  const canGoNext = currentPage < lastPage;
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -120,10 +152,15 @@ const UsersIndex = () => {
             Refresh
           </Button>
 
-          <Button>
-            <Plus />
-            Add User
-          </Button>
+          {isAdmin && (
+            <Button
+              onClick={() => setIsAddModalOpen(true)}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Plus />
+              Add User
+            </Button>
+          )}
         </div>
       </div>
 
@@ -136,45 +173,31 @@ const UsersIndex = () => {
             <div className="md:col-span-2 relative">
               <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <Input
-                value={filters.search}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, search: e.target.value }))
-                }
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search by name, email, phone"
                 className="pl-9"
               />
             </div>
 
             <Select
-              value={filters.paymentStatus}
-              onValueChange={(value) =>
-                setFilters((prev) => ({ ...prev, paymentStatus: value }))
-              }
+              value={roleFilter}
+              onValueChange={(value) => setRoleFilter(value)}
             >
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="Payment status" />
+                <SelectValue placeholder="Role" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All payments</SelectItem>
-                <SelectItem value="paid">Paid</SelectItem>
-                <SelectItem value="unpaid">Unpaid</SelectItem>
+                <SelectItem value="all">All roles</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="user">User</SelectItem>
               </SelectContent>
             </Select>
-
-            <Input
-              type="date"
-              value={filters.nextDueDate}
-              onChange={(e) =>
-                setFilters((prev) => ({ ...prev, nextDueDate: e.target.value }))
-              }
-            />
           </div>
 
           <div className="flex items-center gap-2 mt-4">
-            <Button onClick={applyFilters} disabled={loading}>
-              Apply
-            </Button>
-            <Button variant="outline" onClick={resetFilters} disabled={loading}>
+            <Button disabled={loading}>Apply</Button>
+            <Button variant="outline" disabled={loading}>
               Reset
             </Button>
           </div>
@@ -295,7 +318,6 @@ const UsersIndex = () => {
               <Button
                 variant="outline"
                 onClick={() => setCurrentPage((prev) => prev - 1)}
-                disabled={!canGoPrev || loading}
               >
                 Previous
               </Button>
@@ -305,7 +327,6 @@ const UsersIndex = () => {
               <Button
                 variant="outline"
                 onClick={() => setCurrentPage((prev) => prev + 1)}
-                disabled={!canGoNext || loading}
               >
                 Next
               </Button>
@@ -313,6 +334,180 @@ const UsersIndex = () => {
           </div>
         </CardContent>
       </Card>
+      {/* Modals for view, edit, add, delete would go here */}
+      <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+        <DialogContent className="sm:max-w-137.5 max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>Add New User</DialogTitle>
+            <DialogDescription>
+              Create a new user by filling out the form below. Make sure to
+              provide valid information for all required fields.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...formAdd}>
+            <form
+              className="space-y-6 mt-4"
+              onSubmit={formAdd.handleSubmit(handleAddUser)}
+            >
+              <FormField
+                control={formAdd.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-700 font-medium">
+                      Name
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type="text"
+                        {...field}
+                        disabled={formLoading}
+                        className="focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+                        placeholder="john doe"
+                      />
+                    </FormControl>
+                    <FormMessage className="text-red-500 text-xs" />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={formAdd.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-700 font-medium">
+                      Email
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        {...field}
+                        disabled={formLoading}
+                        className="focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+                        placeholder="john.doe@example.com"
+                      />
+                    </FormControl>
+                    <FormMessage className="text-red-500 text-xs" />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={formAdd.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-700 font-medium">
+                      Phone Number
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type="tel"
+                        {...field}
+                        disabled={formLoading}
+                        className="focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+                        placeholder="(123) 456-7890"
+                      />
+                    </FormControl>
+                    <FormMessage className="text-red-500 text-xs" />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={formAdd.control}
+                name="password"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-700 font-medium">
+                      Password
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type="password"
+                        {...field}
+                        disabled={formLoading}
+                        className="focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+                        placeholder="Enter your password"
+                      />
+                    </FormControl>
+                    <FormMessage className="text-red-500 text-xs" />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={formAdd.control}
+                name="role_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-700 font-medium">
+                      Role
+                    </FormLabel>
+                    <FormControl>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        disabled={formLoading}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">Merchant</SelectItem>
+                          <SelectItem value="6">Staff</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormMessage className="text-red-500 text-xs" />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={formAdd.control}
+                name="avatar"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-700 font-medium">
+                      Avatar
+                    </FormLabel>
+                    <FormControl>
+                      <ImageUpload
+                        value={field.value ?? ""}
+                        onChange={field.onChange}
+                        disabled={formLoading}
+                      />
+                    </FormControl>
+                    <FormMessage className="text-red-500 text-xs" />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsAddModalOpen(false)}
+                  disabled={formLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant={"default"}
+                  disabled={formLoading}
+                  className="hover:bg-amber-700"
+                >
+                  {formLoading ? (
+                    <>
+                      <Loader2 className="animate-spin mr-2" />
+                      Creating...
+                    </>
+                  ) : (
+                    "Create User"
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
