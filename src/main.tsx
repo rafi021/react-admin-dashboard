@@ -7,6 +7,7 @@ import App from "./App.tsx";
 import Login from "./pages/Login.tsx";
 import Register from "./pages/Register.tsx";
 import DashboardPage from "./pages/DashboardPage.tsx";
+import UsersIndex from "./pages/users/Index.tsx";
 
 const router = createBrowserRouter([
   {
@@ -24,6 +25,10 @@ const router = createBrowserRouter([
       {
         path: "/dashboard",
         element: <DashboardPage />,
+      },
+      {
+        path: "/users",
+        element: <UsersIndex />,
       },
     ],
   },

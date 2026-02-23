@@ -95,6 +95,8 @@ export const ADMIN_API_ENDPOINTS = {
     LOGOUT: "/logout",
 
     // Users
+    USER_INDEX: "/client/users",
+
 } as const;
 
 export const buildAdminQueryParams = (

@@ -9,7 +9,6 @@ import {
   LayoutDashboard,
   Package,
   Settings,
-  ShoppingCart,
   Store,
   Tags,
   User,
@@ -24,8 +23,7 @@ const navSections = [
     title: "Overview",
     items: [
       { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
-      { label: "Orders", to: "/dashboard", icon: ShoppingCart, badge: "24" },
-      { label: "Customers", to: "/dashboard", icon: Users },
+      { label: "Users", to: "/users", icon: Users },
     ],
   },
   {
