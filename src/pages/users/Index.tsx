@@ -54,11 +54,12 @@ import { userSchema } from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { toast } from "sonner";
+import UserSkeleton from "@/components/skeletons/user-skeleton";
 
 const UsersIndex = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
-  // const [refreshing, setRefreshing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   // const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   // const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -69,7 +70,7 @@ const UsersIndex = () => {
   const [roleFilter, setRoleFilter] = useState("");
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  // const [perPage, setPerPage] = useState(10);
+  const [perPage, setPerPage] = useState(10);
   // const [totalPages, setTotalPages] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [from, setFrom] = useState<number | null>(null);
@@ -114,13 +115,23 @@ const UsersIndex = () => {
 
   const fetchUsers = async () => {
     setLoading(true);
+    setRefreshing(true);
     try {
       const { data: response } = await axiosPrivate.get<
         AdminPaginatedAPIResponse<User>
-      >(ADMIN_API_ENDPOINTS.USER_INDEX);
+      >(ADMIN_API_ENDPOINTS.USER_INDEX, {
+        params: {
+          page: currentPage,
+          search: searchTerm,
+          perPage: perPage,
+          role: roleFilter !== "all" ? roleFilter : undefined,
+        },
+      });
 
       setUsers(response.data || []);
       setTotal(response.total || 0);
+      setPerPage(response.per_page || 10);
+      // setTotalPages(response.total / response.per_page || 1);
       setCurrentPage(response.current_page || 1);
       setLastPage(response.last_page || 1);
       setFrom(response.from || null);
@@ -130,6 +141,7 @@ const UsersIndex = () => {
       toast.error("Failed to fetch users");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -137,6 +149,9 @@ const UsersIndex = () => {
     fetchUsers();
   }, []);
 
+  if (loading) {
+    return <UserSkeleton />;
+  }
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -151,8 +166,12 @@ const UsersIndex = () => {
             <Users2 className="w-7 h-7" />
             <p className="text-2xl font-bold">{users?.length}</p>
           </div>
-          <Button variant={"outline"} onClick={fetchUsers} disabled={loading}>
-            <RefreshCw className={loading ? "animate-spin" : ""} />
+          <Button
+            variant={"outline"}
+            onClick={fetchUsers}
+            disabled={refreshing}
+          >
+            <RefreshCw className={refreshing ? "animate-spin" : ""} />
             Refresh
           </Button>
 
@@ -194,8 +213,8 @@ const UsersIndex = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All roles</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="user">User</SelectItem>
+                <SelectItem value="5">Merchant</SelectItem>
+                <SelectItem value="6">Staff</SelectItem>
               </SelectContent>
             </Select>
           </div>
