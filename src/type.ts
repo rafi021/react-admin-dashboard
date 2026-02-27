@@ -37,7 +37,7 @@ export interface AdminPaginatedAPIResponse<T> extends AdminAPIResponse<T[]> {
 
 export type User = {
     id: number;
-    role_id: number;
+    role_id: string;
     role_name?: string;
     shop_id: number;
     name: string;

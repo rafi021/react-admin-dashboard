@@ -19,3 +19,5 @@ export const userSchema = z.object({
     role_id: z.enum(["5", "6"], { message: "Role must be either 'merchant' or 'staff'" }),
     avatar: z.string().optional(),
 });
+
+export const userEditSchema = userSchema.omit({ password: true });

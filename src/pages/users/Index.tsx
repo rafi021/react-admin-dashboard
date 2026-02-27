@@ -50,7 +50,7 @@ import {
 } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { userSchema } from "@/lib/validation";
+import { userEditSchema, userSchema } from "@/lib/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { toast } from "sonner";
@@ -69,7 +69,7 @@ const UsersIndex = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  // const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   // const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -90,6 +90,8 @@ const UsersIndex = () => {
   const isAdmin = checkIsAdmin();
 
   type FormData = z.infer<typeof userSchema>;
+  type EditFormData = z.infer<typeof userEditSchema>;
+
   const formAdd = useForm<FormData>({
     resolver: zodResolver(userSchema),
     defaultValues: {
@@ -97,6 +99,17 @@ const UsersIndex = () => {
       phone: "",
       email: "",
       password: "",
+      role_id: "5",
+      avatar: "",
+    },
+  });
+
+  const formEdit = useForm<EditFormData>({
+    resolver: zodResolver(userEditSchema),
+    defaultValues: {
+      name: "",
+      phone: "",
+      email: "",
       role_id: "5",
       avatar: "",
     },
@@ -119,6 +132,41 @@ const UsersIndex = () => {
       toast.error("Failed to create user");
     } finally {
       setFormLoading(false);
+    }
+  };
+
+  const handleEdit = async (user: User) => {
+    if (!user) return;
+    setSelectedUser(user);
+    formEdit.reset({
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role_id: user.role_id as "5" | "6",
+      avatar: user.avatar || "",
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditUser = async (data: EditFormData) => {
+    // if (!selectedUser) return;
+    setFormLoading(true);
+    try {
+      const { data: response } = await axiosPrivate.put<AdminAPIResponse<User>>(
+        ADMIN_API_ENDPOINTS.USER_UPDATE(selectedUser!.id),
+        data,
+      );
+      if (response.success) {
+        toast.success("User updated successfully");
+        fetchUsers();
+      }
+    } catch (error) {
+      console.log(error);
+      toast.error("Failed to update user");
+    } finally {
+      setFormLoading(false);
+      setIsEditModalOpen(false);
+      setSelectedUser(null);
     }
   };
 
@@ -334,6 +382,7 @@ const UsersIndex = () => {
                           size="icon"
                           title="Edit user"
                           className="border border-border"
+                          onClick={() => handleEdit(user)}
                         >
                           <Edit />
                         </Button>{" "}
@@ -567,6 +616,161 @@ const UsersIndex = () => {
           </Form>
         </DialogContent>
       </Dialog>
+
+      {/* Edit User Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="sm:max-w-137.5 max-h-[90vh] overflow-auto">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>
+              Update the user's information by modifying the fields below. Make
+              sure to provide valid information for all required fields.
+            </DialogDescription>
+          </DialogHeader>
+          <Form {...formEdit}>
+            <form
+              className="space-y-6 mt-4"
+              onSubmit={formEdit.handleSubmit(handleEditUser)}
+            >
+              <FormField
+                control={formEdit.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-700 font-medium">
+                      Name
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type="text"
+                        {...field}
+                        disabled={formLoading}
+                        className="focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+                        placeholder="john doe"
+                      />
+                    </FormControl>
+                    <FormMessage className="text-red-500 text-xs" />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={formEdit.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-700 font-medium">
+                      Email
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        {...field}
+                        disabled={formLoading}
+                        className="focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+                        placeholder="john.doe@example.com"
+                      />
+                    </FormControl>
+                    <FormMessage className="text-red-500 text-xs" />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={formEdit.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-700 font-medium">
+                      Phone Number
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        type="tel"
+                        {...field}
+                        disabled={formLoading}
+                        className="focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background"
+                        placeholder="(123) 456-7890"
+                      />
+                    </FormControl>
+                    <FormMessage className="text-red-500 text-xs" />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={formEdit.control}
+                name="role_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-700 font-medium">
+                      Role
+                    </FormLabel>
+                    <FormControl>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        disabled={formLoading}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="5">Merchant</SelectItem>
+                          <SelectItem value="6">Staff</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </FormControl>
+                    <FormMessage className="text-red-500 text-xs" />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={formEdit.control}
+                name="avatar"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-gray-700 font-medium">
+                      Avatar
+                    </FormLabel>
+                    <FormControl>
+                      <ImageUpload
+                        value={field.value ?? ""}
+                        onChange={field.onChange}
+                        disabled={formLoading}
+                      />
+                    </FormControl>
+                    <FormMessage className="text-red-500 text-xs" />
+                  </FormItem>
+                )}
+              />
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditModalOpen(false)}
+                  disabled={formLoading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant={"default"}
+                  disabled={formLoading}
+                  className="hover:bg-amber-700"
+                >
+                  {formLoading ? (
+                    <>
+                      <Loader2 className="animate-spin mr-2" />
+                      Updating...
+                    </>
+                  ) : (
+                    "Update User"
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete User Modal */}
       <AlertDialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
         <AlertDialogContent>
