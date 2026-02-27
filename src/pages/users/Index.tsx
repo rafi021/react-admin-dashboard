@@ -1,7 +1,6 @@
 import { useAxiosPrivate } from "@/hooks/useAxiosPrivate";
-import { ADMIN_API_ENDPOINTS } from "@/lib/config";
-import type { AdminAPIResponse, AdminPaginatedAPIResponse, User } from "@/type";
-import { useEffect, useState } from "react";
+import type { User } from "@/type";
+import { useEffect } from "react";
 import {
   Table,
   TableBody,
@@ -55,6 +54,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { ImageUpload } from "@/components/ui/image-upload";
 import { toast } from "sonner";
 import UserSkeleton from "@/components/skeletons/user-skeleton";
+import useUsersStore from "@/store/useUsersStore";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -65,29 +65,54 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 const UsersIndex = () => {
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  // const [isViewModalOpen, setIsViewModalOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [formLoading, setFormLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [roleFilter, setRoleFilter] = useState("");
-  const [total, setTotal] = useState(0);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [perPage, setPerPage] = useState(10);
-  // const [totalPages, setTotalPages] = useState(1);
-  const [lastPage, setLastPage] = useState(1);
-  const [from, setFrom] = useState<number | null>(null);
-  const [to, setTo] = useState<number | null>(null);
-
   const axiosPrivate = useAxiosPrivate();
   const { checkIsAdmin } = useAuthStore();
   const isAdmin = checkIsAdmin();
+
+  const {
+    users,
+    loading,
+    refreshing,
+    formLoading,
+    isEditModalOpen,
+    isAddModalOpen,
+    isDeleteModalOpen,
+    selectedUser,
+    searchTerm,
+    roleFilter,
+    total,
+    currentPage,
+    lastPage,
+    from,
+    to,
+    setSearchTerm,
+    setRoleFilter,
+    setIsEditModalOpen,
+    setIsAddModalOpen,
+    setIsDeleteModalOpen,
+    setSelectedUser,
+    openEditModal,
+    openDeleteModal,
+    fetchUsers,
+    applyFilters,
+    resetFilters,
+    goToPage,
+    goToPreviousPage,
+    goToNextPage,
+    addUser,
+    updateUser,
+    deleteUser,
+  } = useUsersStore();
 
   type FormData = z.infer<typeof userSchema>;
   type EditFormData = z.infer<typeof userEditSchema>;
@@ -116,28 +141,23 @@ const UsersIndex = () => {
   });
 
   const handleAddUser = async (data: FormData) => {
-    setFormLoading(true);
     try {
-      const { data: response } = await axiosPrivate.post<
-        AdminAPIResponse<User>
-      >(ADMIN_API_ENDPOINTS.USER_CREATE, data);
-      if (response.success) {
+      const success = await addUser(axiosPrivate, data);
+      if (success) {
         toast.success("User created successfully");
         formAdd.reset();
         setIsAddModalOpen(false);
-        fetchUsers();
+        await fetchUsers(axiosPrivate);
       }
     } catch (error) {
       console.log(error);
       toast.error("Failed to create user");
-    } finally {
-      setFormLoading(false);
     }
   };
 
   const handleEdit = async (user: User) => {
     if (!user) return;
-    setSelectedUser(user);
+    openEditModal(user);
     formEdit.reset({
       name: user.name,
       email: user.email,
@@ -145,43 +165,36 @@ const UsersIndex = () => {
       role_id: user.role_id as "5" | "6",
       avatar: user.avatar || "",
     });
-    setIsEditModalOpen(true);
   };
 
   const handleEditUser = async (data: EditFormData) => {
-    // if (!selectedUser) return;
-    setFormLoading(true);
+    if (!selectedUser) return;
+
     try {
-      const { data: response } = await axiosPrivate.put<AdminAPIResponse<User>>(
-        ADMIN_API_ENDPOINTS.USER_UPDATE(selectedUser!.id),
-        data,
-      );
-      if (response.success) {
+      const success = await updateUser(axiosPrivate, selectedUser.id, data);
+
+      if (success) {
         toast.success("User updated successfully");
-        fetchUsers();
+        setIsEditModalOpen(false);
+        setSelectedUser(null);
+        await fetchUsers(axiosPrivate);
       }
     } catch (error) {
       console.log(error);
       toast.error("Failed to update user");
-    } finally {
-      setFormLoading(false);
-      setIsEditModalOpen(false);
-      setSelectedUser(null);
     }
   };
 
   const handleDeleteUser = async (user: User) => {
     if (!selectedUser) return;
-    setIsDeleteModalOpen(true);
+
     try {
-      const { data: response } = await axiosPrivate.delete<
-        AdminAPIResponse<null>
-      >(ADMIN_API_ENDPOINTS.USER_DELETE(user.id));
-      if (response.success) {
+      const success = await deleteUser(axiosPrivate, user.id);
+      if (success) {
         toast.success("User deleted successfully");
         setIsDeleteModalOpen(false);
         setSelectedUser(null);
-        fetchUsers();
+        await fetchUsers(axiosPrivate);
       }
     } catch (error) {
       console.log(error);
@@ -192,41 +205,45 @@ const UsersIndex = () => {
     }
   };
 
-  const fetchUsers = async () => {
-    setLoading(true);
-    setRefreshing(true);
-    try {
-      const { data: response } = await axiosPrivate.get<
-        AdminPaginatedAPIResponse<User>
-      >(ADMIN_API_ENDPOINTS.USER_INDEX, {
-        params: {
-          page: currentPage,
-          search: searchTerm,
-          perPage: perPage,
-          role: roleFilter !== "all" ? roleFilter : undefined,
-        },
-      });
+  useEffect(() => {
+    const init = async () => {
+      try {
+        await fetchUsers(axiosPrivate);
+      } catch (error) {
+        console.log(error);
+        toast.error("Failed to fetch users");
+      }
+    };
 
-      setUsers(response.data || []);
-      setTotal(response.total || 0);
-      setPerPage(response.per_page || 10);
-      // setTotalPages(response.total / response.per_page || 1);
-      setCurrentPage(response.current_page || 1);
-      setLastPage(response.last_page || 1);
-      setFrom(response.from || null);
-      setTo(response.to || null);
-    } catch (error) {
-      console.log(error);
-      toast.error("Failed to fetch users");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+    init();
+  }, [axiosPrivate, fetchUsers]);
+
+  const getVisiblePages = () => {
+    if (lastPage <= 5) {
+      return Array.from({ length: lastPage }, (_, index) => index + 1);
     }
+
+    if (currentPage <= 3) {
+      return [1, 2, 3, 4, 5];
+    }
+
+    if (currentPage >= lastPage - 2) {
+      return [lastPage - 4, lastPage - 3, lastPage - 2, lastPage - 1, lastPage];
+    }
+
+    return [
+      currentPage - 2,
+      currentPage - 1,
+      currentPage,
+      currentPage + 1,
+      currentPage + 2,
+    ];
   };
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  const visiblePages = getVisiblePages();
+  const showLeftEllipsis = visiblePages.length > 0 && visiblePages[0] > 1;
+  const showRightEllipsis =
+    visiblePages.length > 0 && visiblePages[visiblePages.length - 1] < lastPage;
 
   if (loading) {
     return <UserSkeleton />;
@@ -247,7 +264,7 @@ const UsersIndex = () => {
           </div>
           <Button
             variant={"outline"}
-            onClick={fetchUsers}
+            onClick={() => fetchUsers(axiosPrivate)}
             disabled={refreshing}
           >
             <RefreshCw className={refreshing ? "animate-spin" : ""} />
@@ -299,8 +316,17 @@ const UsersIndex = () => {
           </div>
 
           <div className="flex items-center gap-2 mt-4">
-            <Button disabled={loading}>Apply</Button>
-            <Button variant="outline" disabled={loading}>
+            <Button
+              disabled={loading}
+              onClick={() => applyFilters(axiosPrivate)}
+            >
+              Apply
+            </Button>
+            <Button
+              variant="outline"
+              disabled={loading}
+              onClick={() => resetFilters(axiosPrivate)}
+            >
               Reset
             </Button>
           </div>
@@ -391,10 +417,7 @@ const UsersIndex = () => {
                           size="icon"
                           title="Delete user"
                           className="border border-border"
-                          onClick={() => {
-                            setSelectedUser(user);
-                            setIsDeleteModalOpen(true);
-                          }}
+                          onClick={() => openDeleteModal(user)}
                         >
                           <Trash />
                         </Button>
@@ -422,23 +445,97 @@ const UsersIndex = () => {
                 : "No records"}
             </p>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setCurrentPage((prev) => prev - 1)}
-              >
-                Previous
-              </Button>
-              <span className="text-sm text-muted-foreground px-2">
-                Page {currentPage} of {lastPage}
-              </span>
-              <Button
-                variant="outline"
-                onClick={() => setCurrentPage((prev) => prev + 1)}
-              >
-                Next
-              </Button>
-            </div>
+            <Pagination className="mx-0 w-auto justify-end">
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (currentPage <= 1 || loading) return;
+                      goToPreviousPage(axiosPrivate);
+                    }}
+                    aria-disabled={currentPage <= 1 || loading}
+                    className={
+                      currentPage <= 1 || loading
+                        ? "pointer-events-none opacity-50"
+                        : ""
+                    }
+                  />
+                </PaginationItem>
+
+                {showLeftEllipsis && (
+                  <>
+                    <PaginationItem>
+                      <PaginationLink
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          goToPage(axiosPrivate, 1);
+                        }}
+                      >
+                        1
+                      </PaginationLink>
+                    </PaginationItem>
+                    <PaginationItem>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                  </>
+                )}
+
+                {visiblePages.map((page) => (
+                  <PaginationItem key={page}>
+                    <PaginationLink
+                      href="#"
+                      isActive={page === currentPage}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        if (loading || page === currentPage) return;
+                        goToPage(axiosPrivate, page);
+                      }}
+                    >
+                      {page}
+                    </PaginationLink>
+                  </PaginationItem>
+                ))}
+
+                {showRightEllipsis && (
+                  <>
+                    <PaginationItem>
+                      <PaginationEllipsis />
+                    </PaginationItem>
+                    <PaginationItem>
+                      <PaginationLink
+                        href="#"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          goToPage(axiosPrivate, lastPage);
+                        }}
+                      >
+                        {lastPage}
+                      </PaginationLink>
+                    </PaginationItem>
+                  </>
+                )}
+
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (currentPage >= lastPage || loading) return;
+                      goToNextPage(axiosPrivate);
+                    }}
+                    aria-disabled={currentPage >= lastPage || loading}
+                    className={
+                      currentPage >= lastPage || loading
+                        ? "pointer-events-none opacity-50"
+                        : ""
+                    }
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
           </div>
         </CardContent>
       </Card>
